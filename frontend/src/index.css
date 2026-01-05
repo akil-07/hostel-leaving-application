@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+:root {
+  --primary: 222.2 47.4% 11.2%;
+  --foreground: 213.6 15.3% 10.6%;
+  --background: 0 0% 100%;
+}
+
+body {
+  @apply bg-gray-50 text-gray-900;
+}
