@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import { Calendar, Clock, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 
 export default function StudentDashboard() {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     const [formData, setFormData] = useState({
         registerNumber: '',
         yearOfStudy: '',
@@ -24,7 +25,7 @@ export default function StudentDashboard() {
 
     const fetchLeaves = async () => {
         try {
-            const res = await axios.get('http://localhost:5000/api/leaves/my-leaves', {
+            const res = await axios.get(`${API_URL}/api/leaves/my-leaves`, {
                 headers: { 'x-auth-token': token }
             });
             setLeaves(res.data);
@@ -40,7 +41,7 @@ export default function StudentDashboard() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            await axios.post('http://localhost:5000/api/leaves',
+            await axios.post(`${API_URL}/api/leaves`,
                 formData,
                 { headers: { 'x-auth-token': token } }
             );

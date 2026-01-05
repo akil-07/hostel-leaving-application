@@ -4,13 +4,14 @@ import { toast } from 'react-hot-toast';
 import { Check, X, Shield, Filter } from 'lucide-react';
 
 export default function WardenDashboard() {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     const [leaves, setLeaves] = useState([]);
     const [filter, setFilter] = useState('All');
     const token = localStorage.getItem('token');
 
     const fetchLeaves = async () => {
         try {
-            const res = await axios.get('http://localhost:5000/api/leaves/all', {
+            const res = await axios.get(`${API_URL}/api/leaves/all`, {
                 headers: { 'x-auth-token': token }
             });
             setLeaves(res.data);
@@ -29,7 +30,7 @@ export default function WardenDashboard() {
         if (comments === null) return;
 
         try {
-            await axios.put(`http://localhost:5000/api/leaves/${id}`,
+            await axios.put(`${API_URL}/api/leaves/${id}`,
                 { status, comments },
                 { headers: { 'x-auth-token': token } }
             );
