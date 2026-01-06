@@ -1,6 +1,38 @@
-const { readData, writeData } = require('../db');
 const { v4: uuidv4 } = require('uuid');
-const { appendToSheet } = require('../services/googleSheets');
+const { fetchFromSheet, appendToSheet, updateSheetRow } = require('../services/googleSheets');
+
+// Helper to map Google Sheet Row -> Frontend Object
+const mapSheetRow = (row) => {
+    return {
+        _id: row.ID,
+        student: { // Mock populated student object since we store name in sheet
+            id: row.StudentID,
+            name: row['Student Name'],
+            email: '' // Not stored in leave sheet
+        },
+        // If we strictly need the ID at the top level for checks:
+        studentId: row.StudentID,
+
+        registerNumber: row['Register Number or Admission Number'],
+        yearOfStudy: row['Year of study'],
+        department: row['Department'],
+        studentMobile: row['Student Mobile Number'],
+        parentMobile: row['Parent Mobile Number'],
+        roomNumber: row['Room Number'],
+        floorInCharge: row['Floor In charge'],
+
+        reason: row['Reason'],
+        // We will store raw dates in new columns for easier parsing
+        fromDate: row['FromDate'] || new Date().toISOString(),
+        toDate: row['ToDate'] || new Date().toISOString(),
+        numberOfDays: row['Number of Days'],
+        outTime: row['Out Time'],
+
+        status: row['Status'] || 'Pending',
+        comments: row['Comments'] || '',
+        createdAt: row['Timestamp'] || new Date().toISOString()
+    };
+};
 
 exports.createLeave = async (req, res) => {
     try {
@@ -10,34 +42,15 @@ exports.createLeave = async (req, res) => {
             studentMobile, parentMobile, roomNumber,
             floorInCharge, numberOfDays, outTime
         } = req.body;
-        const leaves = readData('leaves');
 
-        const newLeave = {
-            _id: uuidv4(),
-            student: req.user.id,
-            reason,
-            fromDate,
-            toDate,
-            registerNumber,
-            yearOfStudy,
-            department,
-            studentMobile,
-            parentMobile,
-            roomNumber,
-            floorInCharge,
-            numberOfDays,
-            outTime,
-            status: 'Pending',
-            comments: '',
-            createdAt: new Date().toISOString()
-        };
+        const newLeaveId = uuidv4();
+        const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
 
-        leaves.push(newLeave);
-        writeData('leaves', leaves);
-
-        // Append to Google Sheet (Async, don't block response)
-        appendToSheet({
-            'Timestamp': new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+        // Object matching Google Sheet Columns
+        // Note: We are ADDING columns (ID, StudentID, Status, etc) that might not be in the user's original form.
+        // They should add these columns to their sheet or the API will auto-add them if getting fresh.
+        const sheetRow = {
+            'Timestamp': timestamp,
             'Register Number or Admission Number': registerNumber,
             'Student Name': req.user.name || 'Student',
             'Year of study': yearOfStudy,
@@ -47,10 +60,23 @@ exports.createLeave = async (req, res) => {
             'Room Number': roomNumber,
             'Reason': reason,
             'Floor In charge': floorInCharge,
-            'Leave Date(s)': `${fromDate} to ${toDate} (${numberOfDays} days)`
-        });
+            'Leave Date(s)': `${fromDate} to ${toDate} (${numberOfDays} days)`,
 
-        res.json(newLeave);
+            // System Columns (For App Functionality)
+            'ID': newLeaveId,
+            'StudentID': req.user.id,
+            'Status': 'Pending',
+            'Comments': '',
+            'FromDate': fromDate,
+            'ToDate': toDate,
+            'Number of Days': numberOfDays,
+            'Out Time': outTime
+        };
+
+        await appendToSheet('leaves', sheetRow);
+
+        // Return the mapped object so frontend updates immediately
+        res.json(mapSheetRow(sheetRow));
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server Error');
@@ -59,8 +85,12 @@ exports.createLeave = async (req, res) => {
 
 exports.getStudentLeaves = async (req, res) => {
     try {
-        const leaves = readData('leaves');
-        const studentLeaves = leaves.filter(l => l.student === req.user.id).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        const rows = await fetchFromSheet('leaves');
+        const studentLeaves = rows
+            .map(mapSheetRow)
+            .filter(l => l.studentId === req.user.id)
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
         res.json(studentLeaves);
     } catch (err) {
         console.error(err.message);
@@ -72,18 +102,12 @@ exports.getAllLeaves = async (req, res) => {
     try {
         if (req.user.role !== 'warden') return res.status(403).json({ msg: 'Access denied' });
 
-        const leaves = readData('leaves');
-        const users = readData('users');
+        const rows = await fetchFromSheet('leaves');
+        const allLeaves = rows
+            .map(mapSheetRow)
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-        const leavesWithStudent = leaves.map(leave => {
-            const student = users.find(u => u.id === leave.student);
-            return {
-                ...leave,
-                student: student ? { name: student.name, email: student.email } : { name: 'Unknown', email: '' }
-            };
-        }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-        res.json(leavesWithStudent);
+        res.json(allLeaves);
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server Error');
@@ -95,25 +119,14 @@ exports.updateLeaveStatus = async (req, res) => {
         if (req.user.role !== 'warden') return res.status(403).json({ msg: 'Access denied' });
 
         const { status, comments } = req.body;
-        const leaves = readData('leaves');
-        const index = leaves.findIndex(l => l._id === req.params.id);
 
-        if (index === -1) return res.status(404).json({ msg: 'Leave request not found' });
+        await updateSheetRow('leaves', req.params.id, {
+            'Status': status,
+            'Comments': comments
+        });
 
-        leaves[index].status = status;
-        if (comments) leaves[index].comments = comments;
-
-        writeData('leaves', leaves);
-
-        // Return with populated student for frontend consistency
-        const users = readData('users');
-        const student = users.find(u => u.id === leaves[index].student);
-        const updatedLeave = {
-            ...leaves[index],
-            student: student ? { name: student.name, email: student.email } : { name: 'Unknown', email: '' }
-        };
-
-        res.json(updatedLeave);
+        // We return the updated object mock
+        res.json({ _id: req.params.id, status, comments });
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server Error');
