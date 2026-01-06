@@ -24,43 +24,55 @@ export default function StudentDashboard() {
     const token = localStorage.getItem('token');
 
     const fetchLeaves = async () => {
+        if (!user || !user.id) return;
         try {
-            const res = await axios.get(`${API_URL}/api/leaves/my-leaves`, {
-                headers: { 'x-auth-token': token }
+            // Using POST correctly even for fetching data because GAS Web App usually handles POST for JSON payloads easiest (doPost)
+            const res = await axios.post(API_URL, {
+                action: 'getStudentLeaves',
+                userId: user.id
             });
-            setLeaves(res.data);
+            if (Array.isArray(res.data)) {
+                setLeaves(res.data);
+            }
         } catch (error) {
             console.error(error);
         }
     };
 
     useEffect(() => {
-        fetchLeaves();
-    }, []);
+        if (user) fetchLeaves();
+    }, [user]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            await axios.post(`${API_URL}/api/leaves`,
-                formData,
-                { headers: { 'x-auth-token': token } }
-            );
-            toast.success('Leave request submitted!');
-            setFormData({
-                registerNumber: '',
-                yearOfStudy: '',
-                department: '',
-                studentMobile: '',
-                parentMobile: '',
-                roomNumber: '',
-                floorInCharge: '',
-                numberOfDays: 1,
-                fromDate: '',
-                outTime: '',
-                toDate: '',
-                reason: ''
+            const res = await axios.post(API_URL, {
+                action: 'createLeave',
+                ...formData,
+                userName: user.name, // Send name since we don't have a backend session lookup
+                studentId: user.id
             });
-            fetchLeaves();
+
+            if (res.data.status === 'success') {
+                toast.success('Leave request submitted!');
+                setFormData({
+                    registerNumber: '',
+                    yearOfStudy: '',
+                    department: '',
+                    studentMobile: '',
+                    parentMobile: '',
+                    roomNumber: '',
+                    floorInCharge: '',
+                    numberOfDays: 1,
+                    fromDate: '',
+                    outTime: '',
+                    toDate: '',
+                    reason: ''
+                });
+                fetchLeaves();
+            } else {
+                toast.error('Failed to submit');
+            }
         } catch (error) {
             toast.error('Failed to submit leave request');
         }

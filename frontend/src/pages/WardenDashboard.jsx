@@ -11,10 +11,12 @@ export default function WardenDashboard() {
 
     const fetchLeaves = async () => {
         try {
-            const res = await axios.get(`${API_URL}/api/leaves/all`, {
-                headers: { 'x-auth-token': token }
+            const res = await axios.post(API_URL, {
+                action: 'getAllLeaves'
             });
-            setLeaves(res.data);
+            if (Array.isArray(res.data)) {
+                setLeaves(res.data);
+            }
         } catch (error) {
             console.error(error);
             toast.error('Failed to load leaves');
@@ -30,10 +32,12 @@ export default function WardenDashboard() {
         if (comments === null) return;
 
         try {
-            await axios.put(`${API_URL}/api/leaves/${id}`,
-                { status, comments },
-                { headers: { 'x-auth-token': token } }
-            );
+            await axios.post(API_URL, {
+                action: 'updateLeaveStatus',
+                leaveId: id,
+                status,
+                comments
+            });
             toast.success(`Leave request ${status}`);
             fetchLeaves();
         } catch (error) {
