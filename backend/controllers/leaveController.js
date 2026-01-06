@@ -1,5 +1,6 @@
 const { readData, writeData } = require('../db');
 const { v4: uuidv4 } = require('uuid');
+const { appendToSheet } = require('../services/googleSheets');
 
 exports.createLeave = async (req, res) => {
     try {
@@ -33,6 +34,28 @@ exports.createLeave = async (req, res) => {
 
         leaves.push(newLeave);
         writeData('leaves', leaves);
+
+        // Append to Google Sheet (Async, don't block response)
+        appendToSheet({
+            ID: newLeave._id,
+            StudentID: newLeave.student,
+            Name: req.user.name || 'Student', // Ideally fetch name
+            Reason: reason,
+            From: fromDate,
+            To: toDate,
+            RegisterNo: registerNumber,
+            Year: yearOfStudy,
+            Dept: department,
+            StudentMobile: studentMobile,
+            ParentMobile: parentMobile,
+            Room: roomNumber,
+            FloorInCharge: floorInCharge,
+            Days: numberOfDays,
+            OutTime: outTime,
+            Status: 'Pending',
+            CreatedAt: newLeave.createdAt
+        });
+
         res.json(newLeave);
     } catch (err) {
         console.error(err.message);
