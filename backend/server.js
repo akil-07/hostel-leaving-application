@@ -18,7 +18,7 @@ app.use(cors({
     credentials: true
 }));
 
-app.options("*", cors());
+// app.options removed due to Node 22 incompatibility
 
 // MongoDB is replaced by local JSON DB for ease of use
 // mongoose.connect(process.env.MONGO_URI)...
