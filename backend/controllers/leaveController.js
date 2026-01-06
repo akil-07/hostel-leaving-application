@@ -37,23 +37,17 @@ exports.createLeave = async (req, res) => {
 
         // Append to Google Sheet (Async, don't block response)
         appendToSheet({
-            ID: newLeave._id,
-            StudentID: newLeave.student,
-            Name: req.user.name || 'Student', // Ideally fetch name
-            Reason: reason,
-            From: fromDate,
-            To: toDate,
-            RegisterNo: registerNumber,
-            Year: yearOfStudy,
-            Dept: department,
-            StudentMobile: studentMobile,
-            ParentMobile: parentMobile,
-            Room: roomNumber,
-            FloorInCharge: floorInCharge,
-            Days: numberOfDays,
-            OutTime: outTime,
-            Status: 'Pending',
-            CreatedAt: newLeave.createdAt
+            'Timestamp': new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+            'Register Number or Admission Number': registerNumber,
+            'Student Name': req.user.name || 'Student',
+            'Year of study': yearOfStudy,
+            'Department': department,
+            'Student Mobile Number': studentMobile,
+            'Parent Mobile Number': parentMobile,
+            'Room Number': roomNumber,
+            'Reason': reason,
+            'Floor In charge': floorInCharge,
+            'Leave Date(s)': `${fromDate} to ${toDate} (${numberOfDays} days)`
         });
 
         res.json(newLeave);
